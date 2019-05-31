@@ -1,0 +1,1 @@
+db_path = '../data/math.db' # Path is relative to entry point of the application - which is app.py.
