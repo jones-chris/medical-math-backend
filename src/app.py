@@ -1,5 +1,5 @@
 from flask_api import FlaskAPI, status
-from flask import request, url_for, make_response
+from flask import request, make_response
 from src.dao.FormulaDao import FormulaDao
 from src.dao.CategoryDao import CategoryDao
 import config
@@ -16,13 +16,15 @@ def get_all_formulas():
         return _build_cors_prelight_response()
     else:
         category = request.args.get('category')
+        search = request.args.get('search')
         query_results = None
 
-        # If categories query param does not exist, get all formulas.
-        if category is None:
-            query_results = formula_dao.get_all_formulas()
-        else:
+        if category:
             query_results = formula_dao.get_formulas_by_category(category)
+        elif search:
+            query_results = formula_dao.get_formula_by_name_or_abbr(search)
+        else:
+            query_results = formula_dao.get_all_formulas()
 
         json = dumps(query_results)
         return _corsify_actual_response(json)
