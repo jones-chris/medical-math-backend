@@ -1,4 +1,5 @@
 import sqlite3
+from src.utils.Utils import cast_bit_to_boolean
 
 
 class FormulaDao:
@@ -29,7 +30,8 @@ class FormulaDao:
                abbreviation,
                category_name,
                parent_id,
-               has_children
+               has_children,
+               function
         from all_formulas
         where parent_id is null
         """
@@ -58,7 +60,8 @@ class FormulaDao:
                abbreviation,
                category_name,
                parent_id,
-               has_children
+               has_children,
+               function
         from all_formulas
         where id = ?
         """
@@ -86,7 +89,8 @@ class FormulaDao:
                abbreviation,
                category_name,
                parent_id,
-               has_children
+               has_children,
+               function
         from all_formulas
         where category_id = ?
         """
@@ -103,7 +107,8 @@ class FormulaDao:
                abbreviation,
                category_name,
                parent_id,
-               has_children
+               has_children,
+               function
         from all_formulas 
         where parent_id = ?
         """
@@ -120,7 +125,8 @@ class FormulaDao:
                abbreviation,
                category_name,
                parent_id,
-               has_children
+               has_children,
+               function
         from all_formulas
         where instr(name, ?) > 0
            or instr(abbreviation, ?) > 0
@@ -139,9 +145,10 @@ class FormulaDao:
                 'id': row[0],
                 'name': row[1],
                 'abbreviation': row[2],
-                'category_name': row[3],
-                'parent_id': row[4],
-                'has_children': row[5]
+                'category': row[3],
+                'parentId': row[4],
+                'hasChildren': cast_bit_to_boolean(row[5]),
+                'function': row[6]
             })
 
         return results

@@ -26,6 +26,11 @@ def get_all_formulas():
         else:
             query_results = formula_dao.get_all_formulas()
 
+        # Now get children (first level of descendants only...no grandchildren) of each formula.
+        for formula in query_results:
+            child_formulas_json = formula_dao.get_child_formulas(formula['id'])
+            formula['childFormulas'] = child_formulas_json
+
         json = dumps(query_results)
         return _corsify_actual_response(json)
 
