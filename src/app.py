@@ -27,9 +27,9 @@ def get_all_formulas():
             query_results = formula_dao.get_all_formulas()
 
         # Now get children (first level of descendants only...no grandchildren) of each formula.
-        for formula in query_results:
-            child_formulas_json = formula_dao.get_child_formulas(formula['id'])
-            formula['childFormulas'] = child_formulas_json
+        # for formula in query_results:
+        #     child_formulas_json = formula_dao.get_child_formulas(formula['id'])
+        #     formula['childFormulas'] = child_formulas_json
 
         json = dumps(query_results)
         return _corsify_actual_response(json)
@@ -37,16 +37,16 @@ def get_all_formulas():
 
 @app.route('/formulas/<int:id>', methods=['GET'])
 def get_formula(id):
-    query_result = formula_dao.get_formula_by_id(id)
+    query_result = formula_dao.get_child_formulas(id)
     json = dumps(query_result)
-    return json, status.HTTP_200_OK
+    return _corsify_actual_response(json)
 
 
 @app.route('/categories', methods=['GET'])
 def get_all_categories():
     categories = category_dao.get_all_categories()
     json = dumps(categories)
-    return json, status.HTTP_200_OK
+    return _corsify_actual_response(json)
 
 
 def _build_cors_prelight_response():

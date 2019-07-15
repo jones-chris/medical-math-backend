@@ -13,17 +13,6 @@ class FormulaDao:
     # Get all top-level formulas
     #==========================================
     def get_all_formulas(self):
-        # sql = """
-        # select f.id,
-        #        f.name,
-        #        f.abbreviation,
-        #        c.name
-        # from formula f
-        # left join formula_relationships fr
-        #   on f.id = fr.child_id
-        # left join category c
-        #   on f.category_id = c.id
-        # """
         sql = """
         select id,
                name,
@@ -41,19 +30,6 @@ class FormulaDao:
             return FormulaDao.map_formula_row_to_dict(cursor)
 
     def get_formula_by_id(self, id):
-        # sql = """
-        #     select f.id,
-        #            f.name,
-        #            f.abbreviation,
-        #            c.name
-        #     from formula f
-        #     left join formula_relationships fr
-        #       on f.id = fr.child_id
-        #     left join category c
-        #       on f.category_id = c.id
-        #     where f.id = ?
-        # """
-
         sql = """
         select id,
                name,
@@ -71,18 +47,6 @@ class FormulaDao:
             return FormulaDao.map_formula_row_to_dict(cursor)
 
     def get_formulas_by_category(self, category_id):
-        # sql = """
-        # select f.id,
-        #        f.name,
-        #        f.abbreviation,
-        #        c.name
-        #     from formula f
-        #     left join formula_relationships fr
-        #       on f.id = fr.child_id
-        #     left join category c
-        #       on f.category_id = c.id
-        #     where c.id = ?
-        # """
         sql = """
         select id,
                name,
