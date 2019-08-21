@@ -1,13 +1,18 @@
-from flask_api import FlaskAPI, status
+from flask_api import FlaskAPI
 from flask import request, make_response
 from src.dao.FormulaDao import FormulaDao
 from src.dao.CategoryDao import CategoryDao
 import config
 from json import dumps
 
-app = FlaskAPI(__name__)
+app = FlaskAPI(__name__, static_folder='templates/dist/', static_url_path='')
 formula_dao = FormulaDao(config.db_path)
 category_dao = CategoryDao(config.db_path)
+
+
+@app.route('/', methods=['GET'])
+def serve_home_page():
+    return app.send_static_file('index.html')
 
 
 @app.route('/formulas', methods=['GET', 'OPTIONS'])
@@ -32,11 +37,14 @@ def get_all_formulas():
         #     formula['childFormulas'] = child_formulas_json
 
         json = dumps(query_results)
+        # json = []
+        # for formula in query_results:
+        #     json.append(formula.as_dict())
         return _corsify_actual_response(json)
 
 
 @app.route('/formulas/<int:id>', methods=['GET'])
-def get_formula(id):
+def get_child_formulas(id):
     query_result = formula_dao.get_child_formulas(id)
     json = dumps(query_result)
     return _corsify_actual_response(json)
@@ -64,4 +72,4 @@ def _corsify_actual_response(response_body):
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=80)

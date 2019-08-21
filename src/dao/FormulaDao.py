@@ -92,8 +92,8 @@ class FormulaDao:
                has_children,
                function
         from all_formulas
-        where instr(name, ?) > 0
-           or instr(abbreviation, ?) > 0
+        where instr(upper(name), upper(?)) > 0
+           or instr(upper(abbreviation), upper(?)) > 0
         """
 
         with sqlite3.connect(self.conn_string) as conn:
