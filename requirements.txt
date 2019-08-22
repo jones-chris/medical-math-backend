@@ -1,2 +1,4 @@
+sqlalchemy
 flask_api
 flask
+flask_sqlalchemy

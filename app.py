@@ -1,13 +1,57 @@
 from flask_api import FlaskAPI
 from flask import request, make_response
-from src.dao.FormulaDao import FormulaDao
-from src.dao.CategoryDao import CategoryDao
-import config
-from json import dumps
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_
+import sys
+
 
 app = FlaskAPI(__name__, static_folder='templates/dist/', static_url_path='')
-formula_dao = FormulaDao(config.db_path)
-category_dao = CategoryDao(config.db_path)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data/math.db"
+db = SQLAlchemy(app)
+
+
+"""
+SQLAlchemy model classes.
+"""
+
+
+class AllFormulas(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, unique=True, nullable=False)
+    abbreviation = db.Column(db.String, unique=True, nullable=False)
+    category_name = db.Column(db.String, nullable=False)
+    category_id = db.Column(db.Integer, nullable=False)
+    parent_id = db.Column(db.Integer, nullable=True)
+    has_children = db.Column(db.Boolean, nullable=True)
+    function = db.Column(db.String, nullable=True)
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'abbreviation': self.abbreviation,
+            'category': self.category_name,
+            'parentId': self.parent_id,
+            'hasChildren': self.has_children,
+            'function': self.function
+        }
+
+
+class Category(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, unique=True, nullable=False)
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name
+        }
+
+
+"""
+Flask API endpoint methods.
+"""
 
 
 @app.route('/', methods=['GET'])
@@ -25,36 +69,48 @@ def get_all_formulas():
         query_results = None
 
         if category:
-            query_results = formula_dao.get_formulas_by_category(category)
+            query_results = AllFormulas.query.filter(AllFormulas.category_id == category)
         elif search:
-            query_results = formula_dao.get_formula_by_name_or_abbr(search)
+            query_results = AllFormulas.query.filter(or_(AllFormulas.name.ilike(f'%{search}%'),
+                                                         AllFormulas.abbreviation.ilike(f'%{search}%')))
         else:
-            query_results = formula_dao.get_all_formulas()
+            # Need to use double equals in filter expression below for sqlalchemy query to work correctly.
+            query_results = AllFormulas.query.filter(AllFormulas.parent_id == None)
 
         # Now get children (first level of descendants only...no grandchildren) of each formula.
         # for formula in query_results:
         #     child_formulas_json = formula_dao.get_child_formulas(formula['id'])
         #     formula['childFormulas'] = child_formulas_json
 
-        json = dumps(query_results)
-        # json = []
-        # for formula in query_results:
-        #     json.append(formula.as_dict())
+        json = []
+        for formula in query_results:
+            json.append(formula.as_dict())
         return _corsify_actual_response(json)
 
 
 @app.route('/formulas/<int:id>', methods=['GET'])
 def get_child_formulas(id):
-    query_result = formula_dao.get_child_formulas(id)
-    json = dumps(query_result)
+    query_result = AllFormulas.query.filter(AllFormulas.parent_id == id)
+    json = _convert_model_to_json(query_result)
     return _corsify_actual_response(json)
 
 
 @app.route('/categories', methods=['GET'])
 def get_all_categories():
-    categories = category_dao.get_all_categories()
-    json = dumps(categories)
+    categories = Category.query.all()
+    json = _convert_model_to_json(categories)
     return _corsify_actual_response(json)
+
+
+def _convert_model_to_json(query_result):
+    """
+    This assumes that the objects contained in the query_result parameter have a as_dict() method, which AllFormulas and
+    Category both have.
+    """
+    json = []
+    for obj in query_result:
+        json.append(obj.as_dict())
+    return json
 
 
 def _build_cors_prelight_response():
@@ -72,4 +128,9 @@ def _corsify_actual_response(response_body):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80)
+    if len(sys.argv) >= 3 and sys.argv[2] == 'PROD':
+        app.run(host='0.0.0.0', port=80)
+        print('Running in PROD mode on 0.0.0.0:80')
+    else:
+        app.run()
+        print('Running in DEV mode')
