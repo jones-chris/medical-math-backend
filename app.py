@@ -76,13 +76,12 @@ def get_all_formulas():
     else:
         category = request.args.get('category')
         search = request.args.get('search')
-        # query_results = None
 
         if category:
             query_results = AllFormulas.query.filter(AllFormulas.category_id == category)
         elif search:
-            query_results = AllFormulas.query.filter(or_(AllFormulas.name.ilike('%{search}%'.format(search)),
-                                                         AllFormulas.abbreviation.ilike('%{search}%'.format(search))))
+            query_results = AllFormulas.query.filter(or_(AllFormulas.name.ilike('%{}%'.format(search)),
+                                                         AllFormulas.abbreviation.ilike('%{}%'.format(search))))
         else:
             # Need to use double equals in filter expression below for sqlalchemy query to work correctly.
             query_results = AllFormulas.query.filter(AllFormulas.parent_id == None)
@@ -159,8 +158,8 @@ Start the Flask API app.
 
 if __name__ == '__main__':
     if IS_PROD:
-        app.run(host='0.0.0.0', port=80)
         print('Running in PROD mode on 0.0.0.0:80')
+        app.run(host='0.0.0.0', port=80)
     else:
-        app.run()
         print('Running in DEV mode')
+        app.run()
