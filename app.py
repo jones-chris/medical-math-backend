@@ -5,10 +5,20 @@ from sqlalchemy import or_
 import sys
 
 
+"""
+App variables
+"""
+
+
 app = FlaskAPI(__name__, static_folder='templates/dist/', static_url_path='')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data/math.db"
 db = SQLAlchemy(app)
+
+if len(sys.argv) >= 2 and sys.argv[1] == 'PROD':
+    IS_PROD = True
+else:
+    IS_PROD = False
 
 
 """
@@ -62,17 +72,17 @@ def serve_home_page():
 @app.route('/formulas', methods=['GET', 'OPTIONS'])
 def get_all_formulas():
     if request.method == 'OPTIONS':
-        return _build_cors_prelight_response()
+        return _build_cors_preflight_response()
     else:
         category = request.args.get('category')
         search = request.args.get('search')
-        query_results = None
+        # query_results = None
 
         if category:
             query_results = AllFormulas.query.filter(AllFormulas.category_id == category)
         elif search:
-            query_results = AllFormulas.query.filter(or_(AllFormulas.name.ilike(f'%{search}%'),
-                                                         AllFormulas.abbreviation.ilike(f'%{search}%')))
+            query_results = AllFormulas.query.filter(or_(AllFormulas.name.ilike('%{search}%'.format(search)),
+                                                         AllFormulas.abbreviation.ilike('%{search}%'.format(search))))
         else:
             # Need to use double equals in filter expression below for sqlalchemy query to work correctly.
             query_results = AllFormulas.query.filter(AllFormulas.parent_id == None)
@@ -85,27 +95,42 @@ def get_all_formulas():
         json = []
         for formula in query_results:
             json.append(formula.as_dict())
-        return _corsify_actual_response(json)
+
+        if IS_PROD:
+            return json
+        else:
+            return _corsify_actual_response(json)
 
 
 @app.route('/formulas/<int:id>', methods=['GET'])
 def get_child_formulas(id):
     query_result = AllFormulas.query.filter(AllFormulas.parent_id == id)
     json = _convert_model_to_json(query_result)
-    return _corsify_actual_response(json)
+    if IS_PROD:
+        return json
+    else:
+        return _corsify_actual_response(json)
 
 
 @app.route('/categories', methods=['GET'])
 def get_all_categories():
     categories = Category.query.all()
     json = _convert_model_to_json(categories)
-    return _corsify_actual_response(json)
+    if IS_PROD:
+        return json
+    else:
+        return _corsify_actual_response(json)
+
+
+"""
+Private methods
+"""
 
 
 def _convert_model_to_json(query_result):
     """
     This assumes that the objects contained in the query_result parameter have a as_dict() method, which AllFormulas and
-    Category both have.
+    Category classes both have.
     """
     json = []
     for obj in query_result:
@@ -113,7 +138,7 @@ def _convert_model_to_json(query_result):
     return json
 
 
-def _build_cors_prelight_response():
+def _build_cors_preflight_response():
     response = make_response()
     response.headers.add("Access-Control-Allow-Origin", "*")
     response.headers.add('Access-Control-Allow-Headers', "*")
@@ -127,8 +152,13 @@ def _corsify_actual_response(response_body):
     return response
 
 
+"""
+Start the Flask API app.
+"""
+
+
 if __name__ == '__main__':
-    if len(sys.argv) >= 3 and sys.argv[2] == 'PROD':
+    if IS_PROD:
         app.run(host='0.0.0.0', port=80)
         print('Running in PROD mode on 0.0.0.0:80')
     else:
