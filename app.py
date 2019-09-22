@@ -59,6 +59,27 @@ class Category(db.Model):
         }
 
 
+class FormulaContexts(db.Model):
+    formula_id = db.Column(db.Integer, primary_key=True)
+    column_name = db.Column(db.String, nullable=False)
+    col_sequence = db.Column(db.Integer, primary_key=True)
+    #value_name = db.Column(db.String, nullable=False)
+    value_sequence = db.Column(db.Integer, primary_key=True)
+    value = db.Column(db.String, nullable=False)
+    can_compare_result = db.Column(db.Boolean, nullable=False)
+
+    def as_dict(self):
+        return {
+            'formulaId': self.formula_id,
+            'colSequence': self.col_sequence,
+            'valueSequence': self.value_sequence,
+            'columnName': self.column_name,
+            #'valueName': self.value_name,
+            'value': self.value,
+            'canCompareResult': self.can_compare_result
+        }
+
+
 """
 Flask API endpoint methods.
 """
@@ -121,6 +142,58 @@ def get_all_categories():
         return _corsify_actual_response(json)
 
 
+@app.route('/formula-context/<string:id>', methods=['GET'])
+def get_formula_context(id):
+    result = request.args.get('result')
+    if result is not None:
+        result = float(result)
+
+    query_result = FormulaContexts.query.filter(FormulaContexts.formula_id == id)
+
+    # Get column set (unique) from query results.
+    columns = []
+    for row in query_result:
+        row_dict = row.as_dict()
+        col_sequence = row_dict['colSequence']
+
+        col_sequence_already_exists = False
+        for column in columns:
+            if column['colSequence'] == col_sequence:
+                col_sequence_already_exists = True
+                break
+
+        if not col_sequence_already_exists:
+            columns.append({
+                'colSequence': col_sequence,
+                'columnName': row_dict['columnName']
+            })
+
+    # Get rows dict
+    rows_dict = []
+    current_row = []
+    row_sequence = 0
+    for obj in query_result:
+        obj_dict = obj.as_dict()
+        if obj_dict['valueSequence'] == row_sequence:
+            current_row.append(obj_dict)
+        else:
+            row_sequence = obj_dict['valueSequence']
+            rows_dict.append(current_row.copy())  # Make a copy, because we are going to clear the list in the next line
+            current_row.clear()
+            current_row.append(obj_dict)
+    rows_dict.append(current_row)  # This is for the last item in the query_result object.  Please clean this up later!
+
+    json = {
+        'columns': columns,
+        'values': rows_dict
+    }
+
+    if IS_PROD:
+        return json
+    else:
+        return _corsify_actual_response(json)
+
+
 """
 Private methods
 """
@@ -149,6 +222,11 @@ def _corsify_actual_response(response_body):
     response = make_response(response_body)
     response.headers.add("Access-Control-Allow-Origin", "*")
     return response
+
+def _get_keys_from_list_of_dicts(l):
+    keys = []
+    for dic in l:
+        key = dic
 
 
 """
