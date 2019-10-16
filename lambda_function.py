@@ -1,24 +1,24 @@
 from flask_api import FlaskAPI
-from flask import request, make_response
+from flask import request, make_response, abort
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
-import sys
+import os
+import awsgi
 
 
 """
 App variables
 """
 
+IS_PROD = os.environ['env'].lower() == 'prod'
+print(IS_PROD)
+CORS_ALLOW_ORIGIN_HEADER_VALUE = os.environ['cors_allow_origin'] if IS_PROD else '*'
+print(CORS_ALLOW_ORIGIN_HEADER_VALUE)
 
 app = FlaskAPI(__name__, static_folder='templates/dist/', static_url_path='')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data/math.db"
 db = SQLAlchemy(app)
-
-if len(sys.argv) >= 2 and sys.argv[1] == 'PROD':
-    IS_PROD = True
-else:
-    IS_PROD = False
 
 
 """
@@ -85,16 +85,19 @@ Flask API endpoint methods.
 """
 
 
-@app.route('/', methods=['GET'])
-def serve_home_page():
-    return app.send_static_file('index.html')
+# @app.route('/index', methods=['GET'])
+# def serve_home_page():
+#     return app.send_static_file('index.html')
 
 
 @app.route('/formulas', methods=['GET', 'OPTIONS'])
 def get_all_formulas():
+    print('In get_all_formulas()')
     if request.method == 'OPTIONS':
+        print('In get_all_formulas() method with OPTIONS')
         return _build_cors_preflight_response()
     else:
+        print('In get_all_formulas() with GET')
         category = request.args.get('category')
         search = request.args.get('search')
 
@@ -107,46 +110,40 @@ def get_all_formulas():
             # Need to use double equals in filter expression below for sqlalchemy query to work correctly.
             query_results = AllFormulas.query.filter(AllFormulas.parent_id == None)
 
-        # Now get children (first level of descendants only...no grandchildren) of each formula.
-        # for formula in query_results:
-        #     child_formulas_json = formula_dao.get_child_formulas(formula['id'])
-        #     formula['childFormulas'] = child_formulas_json
-
         json = []
         for formula in query_results:
             json.append(formula.as_dict())
 
-        if IS_PROD:
-            return json
-        else:
-            return _corsify_actual_response(json)
+        response = _corsify_actual_response(json, CORS_ALLOW_ORIGIN_HEADER_VALUE)
+        print('Response headers in get_all_formulas() are:  \n' + str(response.headers))
+        return response
 
 
 @app.route('/formulas/<int:id>', methods=['GET'])
 def get_child_formulas(id):
     query_result = AllFormulas.query.filter(AllFormulas.parent_id == id)
     json = _convert_model_to_json(query_result)
-    if IS_PROD:
-        return json
-    else:
-        return _corsify_actual_response(json)
+
+    response = _corsify_actual_response(json, CORS_ALLOW_ORIGIN_HEADER_VALUE)
+    print('Response headers in get_child_formulas() are:  \n' + str(response.headers))
+    return response
 
 
 @app.route('/categories', methods=['GET'])
 def get_all_categories():
     categories = Category.query.all()
     json = _convert_model_to_json(categories)
-    if IS_PROD:
-        return json
-    else:
-        return _corsify_actual_response(json)
+
+    response = _corsify_actual_response(json, CORS_ALLOW_ORIGIN_HEADER_VALUE)
+    print('Response headers in get_all_categories() are:  \n' + str(response.headers))
+    return response
 
 
 @app.route('/formula-context/<string:id>', methods=['GET'])
 def get_formula_context(id):
     result = request.args.get('result')
-    if result is not None:
-        result = float(result)
+    if id is None:
+        abort(400, 'A formula id and result is required when requesting a formula context')
 
     query_result = FormulaContexts.query.filter(FormulaContexts.formula_id == id)
 
@@ -172,11 +169,12 @@ def get_formula_context(id):
     rows_dict = []
     current_row = []
     row_sequence = 0
-    for obj in query_result:
-        obj_dict = obj.as_dict()
+    query_results_list = _convert_model_to_json(query_result)
+    for obj_dict in query_results_list:
         if obj_dict['valueSequence'] == row_sequence:
             current_row.append(obj_dict)
         else:
+            # Because the valueSequence does not equal the row_sequence, we are on a new row now.
             row_sequence = obj_dict['valueSequence']
             rows_dict.append(current_row.copy())  # Make a copy, because we are going to clear the list in the next line
             current_row.clear()
@@ -188,10 +186,9 @@ def get_formula_context(id):
         'values': rows_dict
     }
 
-    if IS_PROD:
-        return json
-    else:
-        return _corsify_actual_response(json)
+    response = _corsify_actual_response(json, CORS_ALLOW_ORIGIN_HEADER_VALUE)
+    print('Response headers in get_formula_context() are:  \n' + str(response.headers))
+    return response
 
 
 """
@@ -212,21 +209,17 @@ def _convert_model_to_json(query_result):
 
 def _build_cors_preflight_response():
     response = make_response()
-    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Origin", CORS_ALLOW_ORIGIN_HEADER_VALUE)
     response.headers.add('Access-Control-Allow-Headers', "*")
     response.headers.add('Access-Control-Allow-Methods', "*")
     return response
 
 
-def _corsify_actual_response(response_body):
+def _corsify_actual_response(response_body, cors_allow_origin_header='*'):
     response = make_response(response_body)
-    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Origin", cors_allow_origin_header)
+    print('Response headers in _corsify_actual_response() are:  \n' + str(response.headers))
     return response
-
-def _get_keys_from_list_of_dicts(l):
-    keys = []
-    for dic in l:
-        key = dic
 
 
 """
@@ -234,10 +227,5 @@ Start the Flask API app.
 """
 
 
-if __name__ == '__main__':
-    if IS_PROD:
-        print('Running in PROD mode on 0.0.0.0:80')
-        app.run(host='0.0.0.0', port=80)
-    else:
-        print('Running in DEV mode')
-        app.run()
+def lambda_handler(event, context):
+    return awsgi.response(app, event, context)
